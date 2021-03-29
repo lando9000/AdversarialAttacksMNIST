@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 from tqdm.autonotebook import tqdm
 from time import sleep
 
@@ -19,13 +20,12 @@ class FGSMAttacker:
     def test(self):
         print("Starting attack on", self.modelName, "...")
         # Accuracy counter
-        adversarialExamples = []
-        accuracies = []
-        lossTotal = 0
+        allAdversarialExamples = []
+        allAccuracies = []
 
         for epsilon in self.epsilons:
             correct = 0
-            loss = []
+            loss = 0
             currentExamples = []
             # Loop over all examples in test set
             for batch in tqdm(self.model.testDL):
@@ -50,7 +50,6 @@ class FGSMAttacker:
 
                 # Calculate gradients of model in backward pass
                 currentLoss.backward(retain_graph=True)
-                lossTotal += currentLoss.detach().item()
 
                 # Call FGSM Attack
                 dataGrad = data.grad
@@ -67,21 +66,22 @@ class FGSMAttacker:
 
                     # Save adversarial example
                     adv_ex = perturbedData.squeeze().detach().cpu().numpy()
+                    npProb = probabilities.detach().numpy()
 
                     # Get one image from batch
                     if self.model.batchSize == 64:
                         adv_ex = adv_ex[i]
-
+                        npProb = npProb[i]
                     # Check for success
                     if finalPred[i].item() == target[i].item():
                         correct += 1
                         # Special case for saving 0 epsilon examples
                         if (epsilon == 0) and (len(currentExamples) < 5):
-                            currentExamples.append((prediction[i].item(), finalPred[i].item(), adv_ex))
+                            currentExamples.append((prediction[i].item(), finalPred[i].item(), adv_ex, npProb))
                     else:
                         # Save some adv examples for visualization later
                         if len(currentExamples) < 5:
-                                currentExamples.append((prediction[i].item(), finalPred[i].item(), adv_ex))
+                            currentExamples.append((prediction[i].item(), finalPred[i].item(), adv_ex, npProb))
 
             # Calculate final accuracy for this epsilon
             accuracy = correct / 10000
@@ -90,21 +90,18 @@ class FGSMAttacker:
                                                                      accuracy))
             # Sleep for console output
             sleep(0.1)
-
             # Append results from current epsilon to output
-            accuracies.append(accuracy)
-            loss.append(lossTotal)
-            adversarialExamples.append(currentExamples)
-
-        return accuracies, loss, adversarialExamples
+            allAccuracies.append(accuracy)
+            allAdversarialExamples.append(currentExamples)
+        return allAccuracies, allAdversarialExamples
 
     def attack(self, data, dataGrad, epsilon):
         # Get the sign of data gradient
         dataGradSign = dataGrad.sign()
         # Apply FGSM attack
-        perturbedImg1 = data + epsilon * dataGradSign
+        perturbedImg = data + epsilon * dataGradSign
         # Adding clipping to maintain [0,1] range
-        perturbedImg = torch.clamp(perturbedImg1, 0, 1)
+        perturbedImg = torch.clamp(perturbedImg, 0, 1)
         return perturbedImg
 
     def predict(self, data):
@@ -120,5 +117,56 @@ class FGSMAttacker:
         return probs, prediction
 
     def run(self):
-        accuracies, loss, advEx = self.test()
-        return accuracies, loss, advEx
+        accuracies,  advEx = self.test()
+        return accuracies,  advEx
+
+    def createAdversarialExamples(self):
+        loss = 0
+        examples = []
+        predict = []
+        orig = []
+        # Only get one batch
+
+        for batch in tqdm(self.model.testDL):
+
+            # Get image data and true classification from batch
+            data, target = batch
+
+            # Send the data and label to the device
+            data, target = data.to(self.device), target.to(self.device)
+
+            # Set requires_grad attribute of tensor. Important for Attack
+            data.requires_grad = True
+
+            # Forward pass the data through the model
+            probabilities, prediction = self.predict(data)
+
+            for eps in self.epsilons:
+                # Calculate the loss
+                currentLoss = F.nll_loss(probabilities, target)
+
+                # Zero all existing gradients
+                self.model.zero_grad()
+
+                # Calculate gradients of model in backward pass
+                currentLoss.backward(retain_graph=True)
+                loss += currentLoss.detach().item()
+
+                # Call FGSM Attack
+                dataGrad = data.grad
+                perturbedData = self.attack(data, dataGrad, eps)
+
+                # Re-classify the perturbed image
+                probabilities, finalPred = self.predict(perturbedData)
+                adv_ex = perturbedData.squeeze().detach().cpu().numpy()
+                npProb = probabilities.detach().numpy()
+                if self.model.batchSize == 64:
+                    adv_ex = adv_ex[0]
+                    npProb = npProb[0]
+                if prediction[0].item() == target[0].item():
+                    examples.append(adv_ex)
+                    predict.append(finalPred[0].item())
+                    orig.append(target[0].item())
+
+            break
+        return examples, predict, orig
