@@ -138,4 +138,5 @@ dmypy.json
 cython_debug/
 
 src/__pycache__/
-utils/__pycache__
+utils/__pycache__/
+.idea
