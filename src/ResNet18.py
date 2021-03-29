@@ -20,7 +20,7 @@ class ResNet18(pl.LightningModule):
                            download=False,
                            transform=transforms.Compose([transforms.ToTensor(), ])),
             self.batchSize,
-            shuffle=False)
+            shuffle=True)
 
     @auto_move_data
     def forward(self, x):
