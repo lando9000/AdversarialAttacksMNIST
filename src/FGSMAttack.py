@@ -121,11 +121,10 @@ class FGSMAttacker:
         return accuracies,  advEx
 
     def createAdversarialExamples(self):
-        loss = 0
         examples = []
         predict = []
         orig = []
-        # Only get one batch
+        dL = []
 
         for batch in tqdm(self.model.testDL):
 
@@ -142,6 +141,7 @@ class FGSMAttacker:
             probabilities, prediction = self.predict(data)
 
             for eps in self.epsilons:
+                dataGradNP = 0
                 # Calculate the loss
                 currentLoss = F.nll_loss(probabilities, target)
 
@@ -150,7 +150,6 @@ class FGSMAttacker:
 
                 # Calculate gradients of model in backward pass
                 currentLoss.backward(retain_graph=True)
-                loss += currentLoss.detach().item()
 
                 # Call FGSM Attack
                 dataGrad = data.grad
@@ -160,13 +159,17 @@ class FGSMAttacker:
                 probabilities, finalPred = self.predict(perturbedData)
                 adv_ex = perturbedData.squeeze().detach().cpu().numpy()
                 npProb = probabilities.detach().numpy()
+
                 if self.model.batchSize == 64:
                     adv_ex = adv_ex[0]
                     npProb = npProb[0]
+                    dataGrad = dataGrad[0]
+
                 if prediction[0].item() == target[0].item():
+                    dataGradNP = dataGrad.clone().detach().numpy().reshape(28, 28)
                     examples.append(adv_ex)
                     predict.append(finalPred[0].item())
                     orig.append(target[0].item())
-
+                    dL.append(dataGradNP)
             break
-        return examples, predict, orig
+        return examples, predict, orig, dL

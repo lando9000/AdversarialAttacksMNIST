@@ -4,11 +4,14 @@ import numpy as np
 
 def plotAccuracy(eps, acc):
     # Visualization
-    plt.figure(figsize=(10, 5))
-    plt.plot(eps, acc[0], label="LeNet")
-    plt.plot(eps, acc[1], label="ResNet")
-    plt.yticks(np.arange(0, 1.1, step=0.1))
-    plt.xticks(np.arange(0, .35, step=0.05))
+    fig = plt.figure(figsize=(10, 5))
+    ax = fig.add_subplot(111)
+    ax.plot(eps, acc[0], label='LeNet')
+    ax.plot(eps, acc[1], label='ResNet')
+    l1 = ax.legend(loc='lower left')
+    plt.yticks(np.arange(0, 1.0, step=0.1))
+    plt.xticks(np.arange(0, .5, step=0.05))
+
     plt.title("Accuracy vs Epsilon")
     plt.xlabel("Epsilon")
     plt.ylabel("Accuracy")
@@ -39,10 +42,26 @@ def plotAdversarialExamples(eps, ex):
             plt.xticks([], [])
             plt.yticks([], [])
             if j == 0:
-                plt.ylabel("Eps: {}".format(eps[i]), fontsize=14)
+               plt.ylabel("Eps: {}".format(eps[i]), fontsize=14)
             orig, adv, img, prob = ex[i][j]
             plt.title("{} -> {}".format(orig, adv))
             plt.imshow(img, cmap="gray")
+    plt.tight_layout()
+    plt.show()
+
+
+def plotGradient(eps, grad, pred, orig):
+    cnt = 0
+    plt.figure(figsize=(10, 10))
+    for i in range(len(eps)):
+        cnt += 1
+        plt.subplot(len(grad), len(eps), cnt)
+        plt.xticks([], [])
+        plt.yticks([], [])
+        plt.ylabel("{} -> {}".format(orig[i], pred[i]))
+        plt.title("Eps: {}".format(eps[i]), fontsize=14)
+        img = (grad[i]) * eps[i]
+        plt.imshow(img, cmap="gray")
     plt.tight_layout()
     plt.show()
 

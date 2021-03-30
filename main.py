@@ -8,8 +8,8 @@ import numpy as np
 # Main function for running a FGSM adversarial attack against LeNet and ResNet18 trained on the MNIST dataset.
 def __main__():
     # Define Epsilon Values for image perturbation
-    epsilons = [0, .05, .1, .15, .2, .25, .3]
-    #epsilons = [0, .1, .2, .3]
+    epsilons = [0, 0.05, .1, .15, .2, .25, .3, .35, .4, .45, .5]
+    # epsilons = [0, 0, 0, 0, 0]
 
     # Define the device where using
     device = torch.device("cpu")
@@ -26,16 +26,18 @@ def __main__():
 
     # Run the attack
     accLeNet, advExLN = FGSMAttackerLeNet.run()
-    examples, predict, original = FGSMAttackerLeNet.createAdversarialExamples()
+    examples, predict, original, gradient = FGSMAttackerLeNet.createAdversarialExamples()
     visualization.plotEvolution(epsilons, examples, predict, original)
+    visualization.plotGradient(epsilons, gradient, predict, original)
 
-    # Instance of attack against ResNet18
+    # # Instance of attack against ResNet18
     FGSMAttackerResNet = FGSMAttack.FGSMAttacker("ResNet", resnet18Model, device, epsilons)
 
-    # # Run the attack
+    # Run the attack
     accResNet,  advExRN = FGSMAttackerResNet.run()
-    examples, predict, original = FGSMAttackerResNet.createAdversarialExamples()
+    examples, predict, original, gradient = FGSMAttackerResNet.createAdversarialExamples()
     visualization.plotEvolution(epsilons, examples, predict, original)
+    visualization.plotGradient(epsilons, gradient, predict, original)
 
     # Plot results
     visualization.plotAccuracy(epsilons, [accLeNet, accResNet])
